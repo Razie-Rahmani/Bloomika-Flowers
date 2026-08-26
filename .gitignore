@@ -1,0 +1,6 @@
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/bloomika.db
+backend/payment_uploads/
+*.pyc

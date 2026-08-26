@@ -22,8 +22,20 @@ async function getData() {
         const buttons = document.querySelectorAll("button");
         for (let button of buttons) {
             button.addEventListener("click", function() {
-                const productID = button.dataset.id;
-                console.log("Clicked product id:", productID);
+                const productID = Number(button.dataset.id);
+                function isAlreadyAdded(cartItem) {
+                    return cartItem.id === productID;
+                }
+
+                const existingItem = cart.find(isAlreadyAdded);
+
+                if (existingItem) {
+                    existingItem.quantity += 1;
+                } else {
+                    const product = result.find(p => p.id === productID);
+                    cart.push({id: productID, name: product.name, price: product.price, quantity: 1})
+                };
+                console.log(cart);
             });
         }
 

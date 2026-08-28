@@ -1,5 +1,8 @@
 let cart = [];
 
+const viewCart = document.getElementById("view-cart-btn");
+viewCart.addEventListener("click", function() {renderCart()})
+
 async function getData() {
     const url = "http://127.0.0.1:8000/products";
     try {
@@ -13,13 +16,13 @@ async function getData() {
 
         let html = "";
         for (let item of result) {
-            html += `<div>${item.name} - ${item.price} <button data-id="${item.id}">Add to Cart</button></div>`;
+            html += `<div>${item.name} - ${item.price} <button class="add-to-cart-btn" data-id="${item.id}">Add to Cart</button></div>`;
         }
 
         const catalogSection = document.getElementById("catalog-section");
         catalogSection.innerHTML = html;
 
-        const buttons = document.querySelectorAll("button");
+        const buttons = document.querySelectorAll(".add-to-cart-btn");
         for (let button of buttons) {
             button.addEventListener("click", function() {
                 const productID = Number(button.dataset.id);
@@ -44,3 +47,32 @@ async function getData() {
     }
 }
 getData();
+
+function renderCart() {
+    try {
+        const catalogSection = document.getElementById("catalog-section");
+        const cartSection = document.getElementById("cart-section");
+
+        catalogSection.style.display = "none";
+        cartSection.style.display = "block";
+
+        if (cart.length === 0) {
+            cartSection.innerHTML = `<button id="back-to-catalog-btn">Back to Catalog</button><p>Cart is empty.</p>`;
+        } else {        
+            let html = `<button id="back-to-catalog-btn">Back to Catalog</button>`;
+            for (let item of cart) {
+                html += `<div>${item.name} - ${item.price} - ${item.quantity}</div>`;
+            }
+            cartSection.innerHTML = html;
+        }
+        const backToCatalog = document.getElementById("back-to-catalog-btn");
+        backToCatalog.addEventListener("click", function() {
+            catalogSection.style.display = "block";
+            cartSection.style.display = "none";
+        })
+
+    } catch(error) {
+        console.error(error.message)
+    }
+
+}

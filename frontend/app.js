@@ -13,9 +13,37 @@ async function placeOrder(orderData) {
         const result = await response.json();
         console.log(result);
 
+        let itemsHtml = "";
+        for (let name in result.items) {
+            itemsHtml += `${name} x${result.items[name]}<br>`;
+        }
+
         const cartSection = document.getElementById("cart-section");
-        cartSection.innerHTML = `<p>Order #${result.order_id} placed successfully!<br>Total: ${result.total_price}</p>`;
-        
+        cartSection.innerHTML = `
+            <p>Order #${result.order_id} placed successfully!</p>
+            <p>Items: <br>${itemsHtml}</p>
+            <p>Total: ${result.total_price}</p>
+            <p>Send payment to card: 0000-0000-0000-0000<br>Melika Obeydani</p>
+            <p>Upload your receipt below, and await confirmation by the admin:</p>
+            <input type="file" id="receipt-input" accept="image/*">
+            <button type="button" id="submit-payment-btn">Submit Payment</button>
+        `;
+
+        const submitPaymentBtn = document.getElementById("submit-payment-btn");
+        submitPaymentBtn.addEventListener("click", async function() {
+            const formData = new FormData();
+            const receipt = document.getElementById("receipt-input");
+            formData.append("receipt", receipt.files[0]);
+            const response = await fetch(`http://127.0.0.1:8000/orders/${result.order_id}/payment`, {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+            console.log(data);
+
+            cartSection.innerHTML = `<p>${data.message}</p>`
+        })
+
     } catch (error) {
         console.error(error.message);
     }
@@ -87,8 +115,8 @@ function renderCart() {
             html += `<div id="total-price">Total Price: ${totalPrice}</div>`
             html += `<p><label for="name">Name:</label><input type="text" id="name" /></p>`
             html += `<p><label for="address">Address:</label><input type="text" id="address" /></p>`
-            html += `<p><label for="postal_code">Postal Code:</label><input type="text" id="postal_code" /></p>`
-            html += `<p><label for="phone_number">Phone Number:</label><input type="text" id="phone_number" /></p>`
+            html += `<p><label for="postal-code">Postal Code:</label><input type="text" id="postal-code" /></p>`
+            html += `<p><label for="phone-number">Phone Number:</label><input type="text" id="phone-number" /></p>`
             html += `<button type="button" id="place-order-btn">Place Order.</button>`
 
             cartSection.innerHTML = html;
@@ -102,8 +130,8 @@ function renderCart() {
                 const orderData = {
                     customer_name: document.getElementById("name").value,
                     address: document.getElementById("address").value,
-                    postal_code: document.getElementById("postal_code").value,
-                    phone_number: document.getElementById("phone_number").value,
+                    postal_code: document.getElementById("postal-code").value,
+                    phone_number: document.getElementById("phone-number").value,
                     items: items,
                     total_price: totalPrice
                 };

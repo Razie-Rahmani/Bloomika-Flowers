@@ -99,7 +99,7 @@ async def send_orders(orders: Orders):
     conn.commit()
     order_id = cursor.lastrowid
     conn.close()
-    return {"order_id": order_id, "status": "pending payment", "total_price": orders.total_price}
+    return {"order_id": order_id, "status": "pending payment", "items": orders.items, "total_price": orders.total_price}
 
 @app.get("/orders")
 def get_orders():
@@ -143,5 +143,8 @@ async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
             [InlineKeyboardButton(text="❌ Reject", callback_data=f"reject_{order_id}")]
         ]
     )
-    await bot.send_message(ADMIN_ID, f"Payment received for order #{order_id} from {order['customer_name']} with {order['customer_telegram_id']}\nTotal: {order['total_price']}\nPlease review the receipt.", reply_markup=keyboard)
+    try:
+        await bot.send_message(ADMIN_ID, f"Payment received for order #{order_id} from {order['customer_name']} with {order['customer_telegram_id']}\nTotal: {order['total_price']}\nPlease review the receipt.", reply_markup=keyboard)
+    except Exception as e:
+        print(f"Telegram notification failed: {e}")
     return{"status": "submitted", "message": "Your request has been submitted. Please wait for confirmation."}

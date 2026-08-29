@@ -17,6 +17,8 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 class Orders(BaseModel):
     customer_name: str
     address: str
+    postal_code: int
+    phone_number: int
     items: dict
     total_price: int
 
@@ -91,9 +93,9 @@ def edit_product(product_id: int, update: ProductUpdate):
 async def send_orders(orders: Orders):
     conn = get_connection()
     cursor = conn.execute("""
-        INSERT INTO orders (customer_name, address, items, total_price, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, (orders.customer_name, orders.address, json.dumps(orders.items), orders.total_price, "pending payment"))
+        INSERT INTO orders (customer_name, address, phone_number, postal_code, items, total_price, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (orders.customer_name, orders.address, orders.phone_number, orders.postal_code, json.dumps(orders.items), orders.total_price, "pending payment"))
     conn.commit()
     order_id = cursor.lastrowid
     conn.close()

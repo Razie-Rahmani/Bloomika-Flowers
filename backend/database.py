@@ -20,8 +20,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             customer_telegram_id TEXT,
             customer_name TEXT NOT NULL,
-            phone_number INTEGER,
-            postal_code INTEGER NOT NULL
+            phone_number TEXT,
+            postal_code TEXT NOT NULL,
             address TEXT NOT NULL,
             items TEXT NOT NULL,
             total_price INTEGER NOT NULL,

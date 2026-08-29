@@ -17,8 +17,8 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 class Orders(BaseModel):
     customer_name: str
     address: str
-    postal_code: int
-    phone_number: int
+    postal_code: str
+    phone_number: str
     items: dict
     total_price: int
 

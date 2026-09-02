@@ -1,0 +1,389 @@
+/* WORK IN PROGRESS */
+
+
+/* ========================================
+   ROOT VARIABLES
+   ======================================== */
+:root {
+    --pink: #ff6b9d;
+    --dark-pink: #e75480;
+    --light-pink: #ffe4ec;
+    --green: #4caf84;
+    --dark-green: #3d8b6a;
+    --cream: #fdf6f0;
+    --brown: #5d4037;
+    --light-gray: #f5f0eb;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --border-radius: 16px;
+    --card-radius: 14px;
+}
+
+/* ========================================
+   RESET & BASE
+   ======================================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--cream);
+    color: var(--brown);
+    padding: 16px 16px 30px;
+    min-height: 100vh;
+    direction: rtl;
+}
+
+/* ========================================
+   HEADER (Your existing header)
+   ======================================== */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0 20px;
+    border-bottom: 2px solid var(--light-pink);
+    margin-bottom: 20px;
+    background-color: var(--cream);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+header h1 {
+    font-size: 24px;
+    color: var(--dark-pink);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+header h1 span {
+    font-size: 22px;
+}
+
+/* ========================================
+   BUTTONS (Reusable)
+   ======================================== */
+button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 30px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+button:active {
+    transform: scale(0.95);
+}
+
+/* View Cart Button (Header) */
+#view-cart-btn {
+    background-color: var(--pink);
+    color: white;
+    padding: 10px 18px;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+}
+
+#view-cart-btn:active {
+    background-color: var(--dark-pink);
+}
+
+/* Back to Catalog Button */
+#back-to-catalog-btn {
+    background-color: var(--light-gray);
+    color: var(--brown);
+    padding: 10px 20px;
+    margin-bottom: 20px;
+    width: 100%;
+    border: 1px solid #ddd;
+}
+
+#back-to-catalog-btn:active {
+    background-color: #e0d8d0;
+}
+
+/* Place Order Button */
+#place-order-btn {
+    background-color: var(--green);
+    color: white;
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    margin-top: 10px;
+    box-shadow: 0 2px 8px rgba(76, 175, 132, 0.3);
+}
+
+#place-order-btn:active {
+    background-color: var(--dark-green);
+}
+
+/* Submit Payment Button */
+#submit-payment-btn {
+    background-color: var(--dark-pink);
+    color: white;
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    margin-top: 10px;
+}
+
+#submit-payment-btn:active {
+    background-color: #c2436e;
+}
+
+/* ========================================
+   CATALOG SECTION (Product List)
+   ======================================== */
+#catalog-section {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Each product card */
+#catalog-section > div {
+    background: white;
+    border-radius: var(--card-radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid #f0e8e0;
+    transition: all 0.2s ease;
+}
+
+#catalog-section > div:active {
+    transform: scale(0.99);
+}
+
+/* Product name */
+#catalog-section > div {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Product price */
+#catalog-section > div {
+    color: var(--brown);
+}
+
+#catalog-section > div .price {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 17px;
+}
+
+/* Add to Cart Button (inside catalog) */
+.add-to-cart-btn {
+    background-color: var(--pink);
+    color: white;
+    padding: 8px 18px;
+    font-size: 13px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(255, 107, 157, 0.25);
+    flex-shrink: 0;
+}
+
+.add-to-cart-btn:active {
+    background-color: var(--dark-pink);
+}
+
+/* ========================================
+   CART SECTION
+   ======================================== */
+#cart-section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 20px 16px;
+    box-shadow: var(--shadow);
+    margin-top: 10px;
+}
+
+/* Cart items */
+#cart-section > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0e8e0;
+    font-size: 15px;
+}
+
+#cart-section > div:last-of-type {
+    border-bottom: none;
+}
+
+/* Total Price */
+#total-price {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--dark-pink);
+    text-align: center;
+    padding: 16px 0 10px;
+    border-top: 2px solid var(--light-pink);
+    margin-top: 10px;
+}
+
+/* Cart form inputs */
+#cart-section label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--brown);
+}
+
+#cart-section input[type="text"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #e8e0d8;
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: inherit;
+    background-color: var(--cream);
+    transition: border-color 0.2s ease;
+    color: var(--brown);
+    margin-bottom: 6px;
+}
+
+#cart-section input[type="text"]:focus {
+    outline: none;
+    border-color: var(--pink);
+    background-color: white;
+}
+
+#cart-section p {
+    margin-bottom: 14px;
+}
+
+/* ========================================
+   PAYMENT SECTION (After placing order)
+   ======================================== */
+#cart-section p:first-of-type {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--green);
+    text-align: center;
+    padding: 10px 0;
+}
+
+#cart-section input[type="file"] {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed #d0c8c0;
+    border-radius: 12px;
+    background-color: var(--cream);
+    margin: 10px 0;
+    font-size: 14px;
+    color: var(--brown);
+}
+
+#cart-section input[type="file"]::file-selector-button {
+    background-color: var(--pink);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+#cart-section input[type="file"]::file-selector-button:active {
+    background-color: var(--dark-pink);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========================================
+   EMPTY CART MESSAGE
+   ======================================== */
+#cart-section p:only-of-type {
+    text-align: center;
+    font-size: 16px;
+    color: #999;
+    padding: 30px 0;
+}
+
+/* When cart is empty, remove the extra padding */
+#cart-section:empty {
+    display: none;
+}
+
+/* ========================================
+   RESPONSIVE TOUCH-UPS
+   ======================================== */
+@media (max-width: 400px) {
+    body {
+        padding: 12px;
+    }
+
+    header h1 {
+        font-size: 20px;
+    }
+
+    #view-cart-btn {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+
+    #catalog-section > div {
+        padding: 12px;
+        font-size: 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .add-to-cart-btn {
+        width: 100%;
+        padding: 10px;
+    }
+
+    #cart-section {
+        padding: 16px 12px;
+    }
+}
+
+/* ========================================
+   SCROLLBAR STYLING (Optional - makes it look cleaner)
+   ======================================== */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--cream);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--light-pink);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--pink);
+}

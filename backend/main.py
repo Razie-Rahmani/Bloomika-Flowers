@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Request, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from database import get_connection, init_db
 from pydantic import BaseModel
 from typing import Optional
@@ -13,12 +14,17 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-bot = Bot(token = os.getenv("BOT_TOKEN"))
-ADMIN_ID = os.getenv("ADMIN_ID")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
+bot = Bot(token = os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+
 class Orders(BaseModel):
+    customer_telegram_id: str
     customer_name: str
     address: str
     postal_code: str
@@ -40,8 +46,30 @@ class ProductUpdate(BaseModel):
     price: Optional[int] = None
     category: Optional[str] = None
 
+init_db()
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await bot.set_webhook(
+        url=WEBHOOK_URL,
+        secret_token=WEBHOOK_SECRET,
+        drop_pending_updates=True,
+    )
+    yield
+    await bot.delete_webhook()
+    await bot.session.close()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post(WEBHOOK_PATH)
+async def telegram_webhook(request: Request):
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != WEBHOOK_SECRET:
+        return {"ok": False}, 401
+
+    data = await request.json()
+    update = Update.model_validate(data, context={"bot": bot})
+    await dp.feed_update(bot, update)
+    return {"ok": True}
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,8 +77,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-init_db()
 
 @app.get("/products")
 def get_products():
@@ -104,10 +130,10 @@ async def send_orders(orders: Orders):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO orders (customer_name, address, phone_number, postal_code, items, total_price, status)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO orders (customer_telegram_id, customer_name, address, phone_number, postal_code, items, total_price, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
-    """, (orders.customer_name, orders.address, orders.phone_number, orders.postal_code, json.dumps(orders.items), orders.total_price, "pending payment"))
+    """, (orders.customer_telegram_id, orders.customer_name, orders.address, orders.phone_number, orders.postal_code, json.dumps(orders.items), orders.total_price, "pending payment"))
     conn.commit()
     order_id = cur.fetchone()["id"]
     conn.close()

@@ -3,16 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import get_connection, init_db
 from pydantic import BaseModel
 from typing import Optional
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import json
 
-from aiogram import Bot
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command
+from aiogram.types import Update, Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+import httpx
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 bot = Bot(token = os.getenv("BOT_TOKEN"))
 ADMIN_ID = os.getenv("ADMIN_ID")
+
+dp = Dispatcher()
 
 class Orders(BaseModel):
     customer_name: str
@@ -51,19 +55,23 @@ init_db()
 @app.get("/products")
 def get_products():
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM products").fetchall()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM products")
+    rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
 @app.post("/products/")
 async def add_new_product(products: Product):
     conn = get_connection()
-    cursor = conn.execute("""
+    cur = conn.cursor()
+    cur.execute("""
         INSERT INTO products (name, price, category)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
+        RETURNING id
     """, (products.name, products.price, products.category))
     conn.commit()
-    product_id = cursor.lastrowid
+    product_id = cur.fetchone()["id"]
     conn.close()
     return {"product_id": product_id, "name": products.name, "price": products.price, "category": products.category}
 
@@ -73,38 +81,44 @@ def edit_product(product_id: int, update: ProductUpdate):
     set_clauses = []
     values = []
     if update.name is not None:
-        set_clauses.append("name = ?")
+        set_clauses.append("name = %s")
         values.append(update.name)
     if update.price is not None:
-        set_clauses.append("price = ?")
+        set_clauses.append("price = %s")
         values.append(update.price)
     if update.category is not None:
-        set_clauses.append("category = ?")
+        set_clauses.append("category = %s")
         values.append(update.category)
     clause_string = ", ".join(set_clauses)
     values.append(product_id)
-    conn.execute(f"UPDATE products SET {clause_string} WHERE id = ?", values)
+    cur = conn.cursor()
+    cur.execute(f"UPDATE products SET {clause_string} WHERE id = %s", values)
     conn.commit()
-    updated_product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id, )).fetchone()
+    cur.execute("SELECT * FROM products WHERE id = %s", (product_id, ))
+    updated_product = cur.fetchone()
     conn.close()
     return dict(updated_product)
 
 @app.post("/orders/")
 async def send_orders(orders: Orders):
     conn = get_connection()
-    cursor = conn.execute("""
+    cur = conn.cursor()
+    cur.execute("""
         INSERT INTO orders (customer_name, address, phone_number, postal_code, items, total_price, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
     """, (orders.customer_name, orders.address, orders.phone_number, orders.postal_code, json.dumps(orders.items), orders.total_price, "pending payment"))
     conn.commit()
-    order_id = cursor.lastrowid
+    order_id = cur.fetchone()["id"]
     conn.close()
     return {"order_id": order_id, "status": "pending payment", "items": orders.items, "total_price": orders.total_price}
 
 @app.get("/orders")
 def get_orders():
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM orders").fetchall()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM orders")
+    rows = cur.fetchall()
     conn.close()
     orders = []
     for row in rows:
@@ -116,11 +130,13 @@ def get_orders():
 @app.patch("/orders/{order_id}")
 def update_status(order_id: int, update: StatusUpdate):
     conn = get_connection()
-    conn.execute("""
-        UPDATE orders SET status = ? WHERE id = ?
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE orders SET status = %s WHERE id = %s
     """, (update.status, order_id))
     conn.commit()
-    new_stat = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id, )).fetchone()
+    cur.execute("SELECT * FROM orders WHERE id = %s", (order_id, ))
+    new_stat = cur.fetchone()
     conn.close()
     return dict(new_stat)
 
@@ -131,11 +147,14 @@ async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(contents)
     conn = get_connection()
-    conn.execute("""
-        UPDATE orders SET status = ? WHERE id = ?    
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE orders SET status = %s WHERE id = %s
     """, ("pending_confirmation", order_id))
     conn.commit()
-    order = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
+    order = cur.fetchone()
     conn.close()
     keyboard = InlineKeyboardMarkup(
         inline_keyboard= [
@@ -148,3 +167,63 @@ async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
     except Exception as e:
         print(f"Telegram notification failed: {e}")
     return{"status": "submitted", "message": "Your request has been submitted. Please wait for confirmation."}
+
+
+async def main_menu(message: Message):
+    if message.from_user.id == ADMIN_ID:
+        text = "Bloomika admin bot running. You'll be notified here when orders come in."
+        keyboard = None  # maybe some admin-specific keyboard later
+    else:
+        text = "Welcome to Bloomika! 🌸 Open the shop to browse and order."
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard = [
+                [InlineKeyboardButton(text = "FAQ", callback_data = "faq_menu")],
+                [InlineKeyboardButton(text = "Contact Us", callback_data = "contact_us")],
+                [InlineKeyboardButton(text = "Open Shop", web_app = WebAppInfo(url = "https://example.com"))]
+            ]
+        )
+
+    await message.answer(text, reply_markup = keyboard)
+
+
+@dp.message(Command("start"))
+async def start(message: Message):
+    await main_menu(message)
+
+@dp.callback_query(F.data == "faq_menu")
+async def show_faq_menu(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard = [
+            [InlineKeyboardButton(text = "Is it available?", callback_data = "faq_availability")],
+            [InlineKeyboardButton(text = "What's the price?", callback_data = "faq_price")],
+            [InlineKeyboardButton(text = "Do you deliver?", callback_data = "faq_delivery")],
+        ]
+    )
+    await callback.message.answer("Choose a question:", reply_markup = keyboard)
+    await callback.answer()
+
+FAQ_ANSWERS = {
+    "faq_availability": "بله، محصولات موجود است!",
+    "faq_price": "قیمت‌ها داخل مینی‌اپ مشخص شده.",
+    "faq_delivery": "بله، ارسال داریم.",
+}
+
+@dp.callback_query(F.data.startswith("faq_") & ~F.data.contains("menu"))
+async def answer_faq(callback: CallbackQuery):
+    answer = FAQ_ANSWERS.get(callback.data)
+    await callback.message.answer(answer)
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("confirm_") | F.data.startswith("reject_"))
+async def handle_decision(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Not authorized.", show_alert=True)
+        return
+
+    action, order_id = callback.data.split("_")
+    new_status = "confirmed" if action == "confirm" else "rejected"
+
+    update_status(int(order_id), StatusUpdate(status=new_status))
+
+    await callback.message.answer(f"Order #{order_id} {new_status}. Customer notified.")
+    await callback.answer()

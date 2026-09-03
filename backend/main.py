@@ -71,11 +71,14 @@ init_db()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await bot.set_webhook(
+    print("🔥 WEBHOOK_URL =", WEBHOOK_URL)
+    print("🔥 WEBHOOK_SECRET configured =", bool(WEBHOOK_SECRET))
+    result = await bot.set_webhook(
         url=WEBHOOK_URL,
         secret_token=WEBHOOK_SECRET,
         drop_pending_updates=True,
     )
+    print("🔥 set_webhook result =", result) 
     yield
     await bot.delete_webhook()
     await bot.session.close()

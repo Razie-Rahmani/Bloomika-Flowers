@@ -13,6 +13,7 @@ const ICONS = {
 };
 
 const API_BASE = "https://bloomika-flowers.onrender.com";
+const customerTelegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
 
 const catalogSection = document.getElementById("catalog-section");
 const cartSection = document.getElementById("cart-section");
@@ -273,6 +274,7 @@ function renderCart() {
                 }, {});
 
                 const orderData = {
+                    customer_telegram_id: String(customerTelegramId),
                     customer_name: values.customer_name,
                     address: values.address,
                     postal_code: values.postal_code,

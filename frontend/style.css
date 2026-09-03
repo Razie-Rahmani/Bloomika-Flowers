@@ -333,6 +333,14 @@ button:disabled {
     margin-bottom: var(--space-1);
 }
 
+.product-card .product-photo {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: calc(var(--card-radius) - 4px);
+    margin-bottom: var(--space-1);
+}
+
 .product-card .product-name {
     font-size: 15px;
     font-weight: 600;

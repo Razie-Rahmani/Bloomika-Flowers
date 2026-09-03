@@ -146,9 +146,12 @@ async function getData() {
 
         let html = "";
         for (let item of result) {
+            const media = item.image_url
+                ? `<img class="product-photo" src="${escapeHtml(API_BASE + item.image_url)}" alt="${escapeHtml(item.name)}" loading="lazy">`
+                : `<div class="product-icon">${ICONS.flower}</div>`;
             html += `
                 <div class="product-card">
-                    <div class="product-icon">${ICONS.flower}</div>
+                    ${media}
                     <span class="product-name">${escapeHtml(item.name)}</span>
                     <span class="price">${escapeHtml(item.price)} تومان</span>
                     <button type="button" class="add-to-cart-btn" data-id="${item.id}">افزودن به سبد</button>

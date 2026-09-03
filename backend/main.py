@@ -290,7 +290,8 @@ async def main_menu(message: Message):
 
 @dp.message(Command("start"))
 async def start(message: Message):
-    await main_menu(message)
+    print("🔥🔥🔥 START HANDLER WAS HIT 🔥🔥🔥")
+    await message.answer("TEST: handler works")
 
 @dp.callback_query(F.data == "faq_menu")
 async def show_faq_menu(callback: CallbackQuery):

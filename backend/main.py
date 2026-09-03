@@ -8,7 +8,7 @@ import json
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Update, Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import Update, Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, BufferedInputFile
 import httpx
 import os
 from dotenv import load_dotenv
@@ -169,9 +169,7 @@ def update_status(order_id: int, update: StatusUpdate):
 @app.post("/orders/{order_id}/payment")
 async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
     contents = await receipt.read()
-    file_path = f"payment_uploads/receipt_{order_id}.jpg"
-    with open(file_path, "wb") as f:
-        f.write(contents)
+
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -182,18 +180,44 @@ async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
     cur.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
     order = cur.fetchone()
     conn.close()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    items = order["items"]
+    if isinstance(items, str):
+        items = json.loads(items)
+    items_text = "\n".join(f"  • {name} × {qty}" for name, qty in items.items())
+
+    caption = (
+        f"🧾 New payment receipt — Order #{order_id}\n\n"
+        f"👤 {order['customer_name']}\n"
+        f"📞 {order['phone_number']}\n"
+        f"📍 {order['address']} ({order['postal_code']})\n"
+        f"🆔 Telegram ID: {order['customer_telegram_id']}\n\n"
+        f"🛒 Items:\n{items_text}\n\n"
+        f"💰 Total: {order['total_price']}"
+    )
+
     keyboard = InlineKeyboardMarkup(
-        inline_keyboard= [
+        inline_keyboard=[
             [InlineKeyboardButton(text="✅ Confirm", callback_data=f"confirm_{order_id}")],
             [InlineKeyboardButton(text="❌ Reject", callback_data=f"reject_{order_id}")]
         ]
     )
+
     try:
-        await bot.send_message(ADMIN_ID, f"Payment received for order #{order_id} from {order['customer_name']} with {order['customer_telegram_id']}\nTotal: {order['total_price']}\nPlease review the receipt.", reply_markup=keyboard)
+        photo = BufferedInputFile(contents, filename=f"receipt_{order_id}.jpg")
+        await bot.send_photo(
+            ADMIN_ID,
+            photo=photo,
+            caption=caption,
+            reply_markup=keyboard
+        )
     except Exception as e:
         print(f"Telegram notification failed: {e}")
-    return{"status": "submitted", "message": "Your request has been submitted. Please wait for confirmation."}
 
+    return{"status": "submitted", "message": "Your request has been submitted. Please wait for confirmation."}
 
 async def main_menu(message: Message):
     if message.from_user.id == ADMIN_ID:

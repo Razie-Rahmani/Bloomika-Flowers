@@ -2,8 +2,9 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bloomika Flowers</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>بلومیکا | فروشگاه گل</title>
+    <meta name="description" content="فروشگاه آنلاین گل بلومیکا - سفارش آنلاین دسته گل و گیاه">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vazirmatn@33.0.3/Vazirmatn-font-face.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -11,15 +12,34 @@
 <body>
 
     <header>
-        <h1>Bloomika Flowers <span>🌸</span></h1>
-        <button id="view-cart-btn">🛒 View Cart</button>
+        <h1>
+            <svg class="logo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 12c0-2.5-2-4.5-4.5-4.5S3 9.5 3 12s2 4.5 4.5 4.5S12 14.5 12 12Z" fill="var(--color-primary-light)"/>
+                <path d="M12 12c0-2.5 2-4.5 4.5-4.5S21 9.5 21 12s-2 4.5-4.5 4.5S12 14.5 12 12Z" fill="var(--color-primary)"/>
+                <path d="M12 12c-2.5 0-4.5-2-4.5-4.5S9.5 3 12 3s4.5 2 4.5 4.5S14.5 12 12 12Z" fill="var(--color-secondary)"/>
+                <path d="M12 12c2.5 0 4.5 2 4.5 4.5S14.5 21 12 21s-4.5-2-4.5-4.5S9.5 12 12 12Z" fill="var(--color-primary-dark)"/>
+                <circle cx="12" cy="12" r="2.2" fill="var(--color-accent)"/>
+            </svg>
+            بلومیکا
+        </h1>
+        <button id="view-cart-btn" type="button" aria-label="مشاهده سبد خرید">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+            <span id="cart-count" class="cart-badge" hidden>0</span>
+        </button>
     </header>
 
-    <main id="catalog-section">
-        <!-- products will be inserted here by app.js -->  
+    <main id="catalog-section" aria-live="polite" aria-busy="true">
+        <div class="loading-state">
+            <span class="spinner" aria-hidden="true"></span>
+            <p>در حال بارگذاری محصولات...</p>
+        </div>
     </main>
 
-    <section id="cart-section" style="display: none;">
+    <section id="cart-section" style="display: none;" aria-live="polite">
         <!-- cart contents go here -->
     </section>
 

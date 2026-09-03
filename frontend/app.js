@@ -1,152 +1,294 @@
 let cart = [];
 
-const viewCart = document.getElementById("view-cart-btn");
-viewCart.addEventListener("click", function() {renderCart()})
+/* ========================================
+   Inline SVG icons (no emoji — accessible, theme-colored via currentColor)
+   ======================================== */
+const ICONS = {
+    backArrow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>`,
+    check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>`,
+    upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path></svg>`,
+    flower: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.2"></circle><path d="M12 9.8c-1.5 0-2.7-1.2-2.7-2.7S10.5 4.4 12 4.4s2.7 1.2 2.7 2.7-1.2 2.7-2.7 2.7Z"></path><path d="M12 14.2c1.5 0 2.7 1.2 2.7 2.7s-1.2 2.7-2.7 2.7-2.7-1.2-2.7-2.7 1.2-2.7 2.7-2.7Z"></path><path d="M14.2 12c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7-1.2 2.7-2.7 2.7-2.7-1.2-2.7-2.7Z"></path><path d="M9.8 12c0 1.5-1.2 2.7-2.7 2.7S4.4 13.5 4.4 12s1.2-2.7 2.7-2.7 2.7 1.2 2.7 2.7Z"></path></svg>`,
+    emptyCart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>`,
+    alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`
+};
 
-async function placeOrder(orderData) {
-    try {
-        const response = await fetch("http://127.0.0.1:8000/orders/", {
-            method: "POST",
-            headers: { "Content-Type": "application/json"},
-            body: JSON.stringify(orderData)
-        });
-        const result = await response.json();
-        console.log(result);
+const API_BASE = "http://127.0.0.1:8000";
 
-        let itemsHtml = "";
-        for (let name in result.items) {
-            itemsHtml += `${name} x${result.items[name]}<br>`;
-        }
+const catalogSection = document.getElementById("catalog-section");
+const cartSection = document.getElementById("cart-section");
+const viewCartBtn = document.getElementById("view-cart-btn");
+const cartCountBadge = document.getElementById("cart-count");
 
-        const cartSection = document.getElementById("cart-section");
-        cartSection.innerHTML = `
-            <p>Order #${result.order_id} placed successfully!</p>
-            <p>Items: <br>${itemsHtml}</p>
-            <p>Total: ${result.total_price}</p>
-            <p>Send payment to card: 0000-0000-0000-0000<br>Melika Obeydani</p>
-            <p>Upload your receipt below, and await confirmation by the admin:</p>
-            <input type="file" id="receipt-input" accept="image/*">
-            <button type="button" id="submit-payment-btn">Submit Payment</button>
-        `;
+viewCartBtn.addEventListener("click", function () {
+    renderCart();
+});
 
-        const submitPaymentBtn = document.getElementById("submit-payment-btn");
-        submitPaymentBtn.addEventListener("click", async function() {
-            const formData = new FormData();
-            const receipt = document.getElementById("receipt-input");
-            formData.append("receipt", receipt.files[0]);
-            const response = await fetch(`http://127.0.0.1:8000/orders/${result.order_id}/payment`, {
-                method: "POST",
-                body: formData
-            });
-            const data = await response.json();
-            console.log(data);
+function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = String(value);
+    return div.innerHTML;
+}
 
-            cartSection.innerHTML = `<p>${data.message}</p>`
-        })
-
-    } catch (error) {
-        console.error(error.message);
+function updateCartBadge() {
+    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+    if (totalItems > 0) {
+        cartCountBadge.textContent = totalItems > 99 ? "99+" : totalItems;
+        cartCountBadge.hidden = false;
+    } else {
+        cartCountBadge.hidden = true;
     }
 }
 
-async function getData() {
-    const url = "http://127.0.0.1:8000/products";
+/* ========================================
+   Order placement + payment upload
+   ======================================== */
+async function placeOrder(orderData, placeOrderBtn) {
+    const originalContent = placeOrderBtn.innerHTML;
+    placeOrderBtn.disabled = true;
+    placeOrderBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span> در حال ثبت سفارش...`;
+
     try {
-        const response = await fetch(url);
+        const response = await fetch(`${API_BASE}/orders/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(orderData)
+        });
+
         if (!response.ok) {
-            throw new Error (`Response status: ${response.status}`);
+            throw new Error(`Response status: ${response.status}`);
         }
 
         const result = await response.json();
-        console.log(result);
+
+        let itemsHtml = "";
+        for (let name in result.items) {
+            itemsHtml += `<div class="cart-item"><span class="cart-item-name">${escapeHtml(name)}</span><span class="cart-item-meta">×${escapeHtml(result.items[name])}</span></div>`;
+        }
+
+        cartSection.innerHTML = `
+            <p class="order-confirmation-title">${ICONS.check} سفارش شما با کد #${escapeHtml(result.order_id)} ثبت شد</p>
+            <div class="cart-item-list">${itemsHtml}</div>
+            <div id="total-price">مبلغ قابل پرداخت: ${escapeHtml(result.total_price)} تومان</div>
+            <p>لطفاً مبلغ را به شماره کارت زیر واریز کنید:</p>
+            <div class="payment-card-number">0000-0000-0000-0000<br>ملیکا عبیدانی</div>
+            <p>سپس تصویر رسید پرداخت را بارگذاری کنید تا سفارش شما توسط ادمین تأیید شود:</p>
+            <label for="receipt-input">رسید پرداخت</label>
+            <input type="file" id="receipt-input" accept="image/*">
+            <button type="button" id="submit-payment-btn">${ICONS.upload} ارسال رسید</button>
+        `;
+
+        const submitPaymentBtn = document.getElementById("submit-payment-btn");
+        submitPaymentBtn.addEventListener("click", async function () {
+            const receipt = document.getElementById("receipt-input");
+            if (!receipt.files[0]) {
+                receipt.classList.add("field-error");
+                return;
+            }
+
+            const originalPaymentContent = submitPaymentBtn.innerHTML;
+            submitPaymentBtn.disabled = true;
+            submitPaymentBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span> در حال ارسال...`;
+
+            try {
+                const formData = new FormData();
+                formData.append("receipt", receipt.files[0]);
+                const response = await fetch(`${API_BASE}/orders/${result.order_id}/payment`, {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Response status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                cartSection.innerHTML = `<p class="order-confirmation-title">${ICONS.check} ${escapeHtml(data.message)}</p>`;
+                cart = [];
+                updateCartBadge();
+            } catch (error) {
+                console.error(error.message);
+                submitPaymentBtn.disabled = false;
+                submitPaymentBtn.innerHTML = originalPaymentContent;
+                submitPaymentBtn.insertAdjacentHTML("afterend", `<p class="field-error-msg">ارسال رسید ناموفق بود. دوباره تلاش کنید.</p>`);
+            }
+        });
+
+    } catch (error) {
+        console.error(error.message);
+        placeOrderBtn.disabled = false;
+        placeOrderBtn.innerHTML = originalContent;
+        cartSection.insertAdjacentHTML("afterbegin", `<p class="field-error-msg">ثبت سفارش ناموفق بود. لطفاً دوباره تلاش کنید.</p>`);
+    }
+}
+
+/* ========================================
+   Catalog loading
+   ======================================== */
+async function getData() {
+    const url = `${API_BASE}/products`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Response status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        catalogSection.setAttribute("aria-busy", "false");
+
+        if (!result.length) {
+            catalogSection.innerHTML = `
+                <div class="empty-state">
+                    ${ICONS.flower}
+                    <p>در حال حاضر محصولی موجود نیست. بعداً دوباره سر بزنید!</p>
+                </div>`;
+            return;
+        }
 
         let html = "";
         for (let item of result) {
-            html += `<div>${item.name} - ${item.price} <button class="add-to-cart-btn" data-id="${item.id}">Add to Cart</button></div>`;
+            html += `
+                <div class="product-card">
+                    <div class="product-icon">${ICONS.flower}</div>
+                    <span class="product-name">${escapeHtml(item.name)}</span>
+                    <span class="price">${escapeHtml(item.price)} تومان</span>
+                    <button type="button" class="add-to-cart-btn" data-id="${item.id}">افزودن به سبد</button>
+                </div>`;
         }
 
-        const catalogSection = document.getElementById("catalog-section");
         catalogSection.innerHTML = html;
 
         const buttons = document.querySelectorAll(".add-to-cart-btn");
         for (let button of buttons) {
-            button.addEventListener("click", function() {
+            button.addEventListener("click", function () {
                 const productID = Number(button.dataset.id);
-                function isAlreadyAdded(cartItem) {
-                    return cartItem.id === productID;
-                }
 
-                const existingItem = cart.find(isAlreadyAdded);
-
+                const existingItem = cart.find(cartItem => cartItem.id === productID);
                 if (existingItem) {
                     existingItem.quantity += 1;
                 } else {
                     const product = result.find(p => p.id === productID);
-                    cart.push({id: productID, name: product.name, price: product.price, quantity: 1})
-                };
-                console.log(cart);
+                    cart.push({ id: productID, name: product.name, price: product.price, quantity: 1 });
+                }
+
+                updateCartBadge();
+
+                const originalLabel = button.textContent;
+                button.classList.add("just-added");
+                button.textContent = "اضافه شد";
+                setTimeout(() => {
+                    button.classList.remove("just-added");
+                    button.textContent = originalLabel;
+                }, 900);
             });
         }
 
     } catch (error) {
         console.error(error.message);
+        catalogSection.setAttribute("aria-busy", "false");
+        catalogSection.innerHTML = `
+            <div class="error-state">
+                ${ICONS.alert}
+                <p>خطا در بارگذاری محصولات. اتصال اینترنت خود را بررسی و دوباره تلاش کنید.</p>
+                <button type="button" id="retry-load-btn">تلاش دوباره</button>
+            </div>`;
+        const retryBtn = document.getElementById("retry-load-btn");
+        if (retryBtn) {
+            retryBtn.addEventListener("click", () => {
+                catalogSection.setAttribute("aria-busy", "true");
+                catalogSection.innerHTML = `
+                    <div class="loading-state">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <p>در حال بارگذاری محصولات...</p>
+                    </div>`;
+                getData();
+            });
+        }
     }
 }
 getData();
 
+/* ========================================
+   Cart rendering
+   ======================================== */
 function renderCart() {
     try {
-        const catalogSection = document.getElementById("catalog-section");
-        const cartSection = document.getElementById("cart-section");
-
         catalogSection.style.display = "none";
         cartSection.style.display = "block";
 
         if (cart.length === 0) {
-            cartSection.innerHTML = `<button id="back-to-catalog-btn">Back to Catalog</button><p>Cart is empty.</p>`;
-        } else {        
+            cartSection.innerHTML = `
+                <button type="button" id="back-to-catalog-btn">${ICONS.backArrow} بازگشت به فروشگاه</button>
+                <div class="empty-state">
+                    ${ICONS.emptyCart}
+                    <p>سبد خرید شما خالی است.</p>
+                </div>`;
+        } else {
             let totalPrice = 0;
-            let html = `<button id="back-to-catalog-btn">Back to Catalog</button>`;
+            let html = `<button type="button" id="back-to-catalog-btn">${ICONS.backArrow} بازگشت به فروشگاه</button>`;
             for (let item of cart) {
-                totalPrice += item.quantity*item.price;
-                html += `<div>${item.name} - ${item.price} - ${item.quantity}</div>`;
+                totalPrice += item.quantity * item.price;
+                html += `<div class="cart-item"><span class="cart-item-name">${escapeHtml(item.name)}</span><span class="cart-item-meta">${escapeHtml(item.price)} تومان × ${escapeHtml(item.quantity)}</span></div>`;
             }
 
-            html += `<div id="total-price">Total Price: ${totalPrice}</div>`
-            html += `<p><label for="name">Name:</label><input type="text" id="name" /></p>`
-            html += `<p><label for="address">Address:</label><input type="text" id="address" /></p>`
-            html += `<p><label for="postal-code">Postal Code:</label><input type="text" id="postal-code" /></p>`
-            html += `<p><label for="phone-number">Phone Number:</label><input type="text" id="phone-number" /></p>`
-            html += `<button type="button" id="place-order-btn">Place Order.</button>`
+            html += `<div id="total-price">مبلغ کل: ${escapeHtml(totalPrice)} تومان</div>`;
+            html += `
+                <form id="checkout-form">
+                    <div class="field"><label for="name">نام و نام خانوادگی</label><input type="text" id="name" required /></div>
+                    <div class="field"><label for="address">آدرس</label><input type="text" id="address" required /></div>
+                    <div class="field"><label for="postal-code">کد پستی</label><input type="text" id="postal-code" inputmode="numeric" required /></div>
+                    <div class="field"><label for="phone-number">شماره تماس</label><input type="tel" id="phone-number" inputmode="tel" required /></div>
+                    <button type="submit" id="place-order-btn">ثبت سفارش</button>
+                </form>`;
 
             cartSection.innerHTML = html;
 
-            const placeOrderBtn = document.getElementById("place-order-btn");
-            placeOrderBtn.addEventListener("click", function() {
+            const checkoutForm = document.getElementById("checkout-form");
+            checkoutForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                const fields = [
+                    ["name", "customer_name"],
+                    ["address", "address"],
+                    ["postal-code", "postal_code"],
+                    ["phone-number", "phone_number"]
+                ];
+
+                let hasError = false;
+                const values = {};
+                for (const [fieldId, key] of fields) {
+                    const input = document.getElementById(fieldId);
+                    const value = input.value.trim();
+                    input.classList.toggle("field-error", value === "");
+                    if (value === "") hasError = true;
+                    values[key] = value;
+                }
+                if (hasError) return;
+
                 const items = cart.reduce((acc, item) => {
                     acc[item.name] = item.quantity;
                     return acc;
                 }, {});
+
                 const orderData = {
-                    customer_name: document.getElementById("name").value,
-                    address: document.getElementById("address").value,
-                    postal_code: document.getElementById("postal-code").value,
-                    phone_number: document.getElementById("phone-number").value,
+                    customer_name: values.customer_name,
+                    address: values.address,
+                    postal_code: values.postal_code,
+                    phone_number: values.phone_number,
                     items: items,
                     total_price: totalPrice
                 };
-                placeOrder(orderData);
-            })
 
+                placeOrder(orderData, document.getElementById("place-order-btn"));
+            });
         }
+
         const backToCatalog = document.getElementById("back-to-catalog-btn");
-        backToCatalog.addEventListener("click", function() {
-            catalogSection.style.display = "block";
+        backToCatalog.addEventListener("click", function () {
+            catalogSection.style.display = "";
             cartSection.style.display = "none";
-        })
+        });
 
-    } catch(error) {
-        console.error(error.message)
+    } catch (error) {
+        console.error(error.message);
     }
-
 }

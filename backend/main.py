@@ -6,7 +6,6 @@ from database import get_connection, init_db, get_faqs, get_faq, update_faq_answ
 from pydantic import BaseModel
 from typing import Optional
 import json
-import base64
 from io import BytesIO
 
 from aiogram import Bot, Dispatcher, F
@@ -15,7 +14,6 @@ from aiogram.types import Update, Message, CallbackQuery, InlineKeyboardButton, 
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
-import httpx
 import os
 from dotenv import load_dotenv
 
@@ -67,11 +65,6 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     price: Optional[int] = None
     category: Optional[str] = None
-
-class PaymentReceipt(BaseModel):
-    receipt_base64: str
-    filename: Optional[str] = "receipt.jpg"
-    mimetype: Optional[str] = "image/jpeg"
 
 init_db()
 
@@ -210,26 +203,23 @@ def update_status(order_id: int, update: StatusUpdate):
     conn.close()
     return dict(new_stat)
 
-@app.post("/orders/{order_id}/payment")
-async def upload_payments(order_id: int, payload: PaymentReceipt):
-    try:
-        contents = base64.b64decode(payload.receipt_base64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid receipt data")
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        UPDATE orders SET status = %s WHERE id = %s
-    """, ("pending_confirmation", order_id))
-    conn.commit()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
-    order = cur.fetchone()
-    conn.close()
 
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+# ============================================================
+# Receipt intake (replaces the old POST /orders/{id}/payment REST route).
+#
+# Large uploads were silently truncated at the proxy/edge level before
+# reaching FastAPI, and even small uploads were flaky inside Telegram's
+# iOS Mini App WebView specifically. Neither is fixable from app code, so
+# receipts now come in through Telegram's own photo pipeline instead —
+# the same bot.download() mechanism already used for product photos —
+# which is proven reliable elsewhere in this bot.
+#
+# Tradeoff: this only works for customers who opened the shop through the
+# bot (so customer_telegram_id is populated). Direct browser access to the
+# frontend URL is not a supported path for payment. Accepted for V1.
+# ============================================================
 
+async def notify_admin_receipt(order_id: int, order: dict, contents: bytes, filename: str):
     items = order["items"]
     if isinstance(items, str):
         items = json.loads(items)
@@ -244,21 +234,56 @@ async def upload_payments(order_id: int, payload: PaymentReceipt):
         f"🛒 Items:\n{items_text}\n\n"
         f"💰 Total: {order['total_price']}"
     )
-
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="✅ Confirm", callback_data=f"confirm_{order_id}")],
-            [InlineKeyboardButton(text="❌ Reject", callback_data=f"reject_{order_id}")]
+            [InlineKeyboardButton(text="❌ Reject", callback_data=f"reject_{order_id}")],
         ]
     )
-
     try:
-        photo = BufferedInputFile(contents, filename=payload.filename or f"receipt_{order_id}.jpg")
+        photo = BufferedInputFile(contents, filename=filename)
         await bot.send_photo(ADMIN_ID, photo=photo, caption=caption, reply_markup=keyboard)
     except Exception as e:
         print(f"Telegram notification failed: {e}")
 
-    return{"status": "submitted", "message": "Your request has been submitted. Please wait for confirmation."}
+
+@dp.message(F.photo, F.from_user.id != ADMIN_ID)
+async def customer_receipt_photo(message: Message):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT * FROM orders
+        WHERE customer_telegram_id = %s AND status = 'pending payment'
+        ORDER BY id DESC LIMIT 1
+        """,
+        (str(message.from_user.id),),
+    )
+    order = cur.fetchone()
+    conn.close()
+
+    if not order:
+        await message.answer(
+            "موردی برای دریافت رسید پیدا نشد. لطفاً ابتدا از داخل ربات سفارش ثبت کنید و سپس رسید را ارسال کنید."
+        )
+        return
+
+    order_id = order["id"]
+
+    largest = message.photo[-1]
+    buf = BytesIO()
+    await bot.download(largest, destination=buf)
+    contents = buf.getvalue()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE orders SET status = %s WHERE id = %s", ("pending_confirmation", order_id))
+    conn.commit()
+    conn.close()
+
+    await notify_admin_receipt(order_id, order, contents, f"receipt_{order_id}.jpg")
+    await message.answer("رسید شما دریافت شد. لطفاً منتظر تأیید ادمین بمانید. ✅")
+
 
 class AdminStates(StatesGroup):
     waiting_input = State()

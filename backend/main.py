@@ -191,7 +191,7 @@ def get_orders():
     return orders
 
 @app.patch("/orders/{order_id}", dependencies=[Depends(verify_admin_token)])
-def update_status(order_id: int, update: StatusUpdate):
+async def update_status(order_id: int, update: StatusUpdate):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -201,7 +201,38 @@ def update_status(order_id: int, update: StatusUpdate):
     cur.execute("SELECT * FROM orders WHERE id = %s", (order_id, ))
     new_stat = cur.fetchone()
     conn.close()
+
+    await notify_customer_status(dict(new_stat))
+
     return dict(new_stat)
+
+
+# ============================================================
+# Customer status notifications — one Telegram message per status
+# transition, sent inline from this single choke point so both trigger
+# paths (admin bot buttons and the REST PATCH above) are covered without
+# duplicating the send logic. Same fire-and-forget pattern as the admin
+# receipt notification: try to send, log and move on if it fails.
+# ============================================================
+
+STATUS_MESSAGES = {
+    "pending payment": "سفارش شما ثبت شد و در انتظار پرداخت است.",
+    "pending_confirmation": "رسید پرداخت شما دریافت شد و در حال بررسی توسط ادمین است.",
+    "confirmed": "پرداخت شما تأیید شد! سفارش شما در حال آماده‌سازی است. 🌸",
+    "rejected": "متأسفانه رسید پرداخت شما تأیید نشد. لطفاً برای پیگیری با ما در ارتباط باشید.",
+    "delivered": "سفارش شما تحویل داده شد. امیدواریم راضی باشید! 🌷",
+}
+
+
+async def notify_customer_status(order: dict):
+    customer_id = order.get("customer_telegram_id")
+    if not customer_id:
+        return
+    message = STATUS_MESSAGES.get(order["status"], f"وضعیت سفارش شما به‌روزرسانی شد: {order['status']}")
+    try:
+        await bot.send_message(int(customer_id), f"📦 سفارش #{order['id']}\n\n{message}")
+    except Exception as e:
+        print(f"Customer status notification failed: {e}")
 
 
 # ============================================================
@@ -350,7 +381,7 @@ async def handle_decision(callback: CallbackQuery):
     status_map = {"confirm": "confirmed", "reject": "rejected", "deliver": "delivered"}
     new_status = status_map[action]
 
-    update_status(int(order_id), StatusUpdate(status=new_status))
+    await update_status(int(order_id), StatusUpdate(status=new_status))
 
     await callback.message.answer(f"Order #{order_id} {new_status}.")
     await callback.answer()

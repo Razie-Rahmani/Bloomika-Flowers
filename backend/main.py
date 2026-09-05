@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Query, Depends, Header
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from database import get_connection, init_db, get_faqs, get_faq, update_faq_answer, save_product_image, get_product_image
+from database import get_connection, init_db, get_faqs, get_faq, update_faq_answer, save_product_image, get_product_image, get_contact_info
 from pydantic import BaseModel
 from typing import Optional
 import json
@@ -369,6 +369,12 @@ async def answer_faq(callback: CallbackQuery):
     faq = get_faq(callback.data)
     answer = faq["answer"] if faq else "متأسفانه پاسخی برای این سوال ثبت نشده."
     await callback.message.answer(answer)
+    await callback.answer()
+
+@dp.callback_query(F.data == "contact_us")
+async def show_contact_us(callback: CallbackQuery):
+    text = get_contact_info() or "اطلاعات تماس هنوز ثبت نشده."
+    await callback.message.answer(text)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("confirm_") | F.data.startswith("reject_") | F.data.startswith("deliver_"))

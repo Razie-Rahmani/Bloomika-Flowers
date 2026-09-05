@@ -48,6 +48,20 @@ def init_db():
     """)
     conn.commit()
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS contact_info(
+            id SERIAL PRIMARY KEY,
+            content TEXT NOT NULL
+        )
+    """)
+    cur.execute("SELECT COUNT(*) AS count FROM contact_info")
+    if cur.fetchone()["count"] == 0:
+        cur.execute(
+            "INSERT INTO contact_info (content) VALUES (%s)",
+            ("📞 09120000000\n📷 instagram.com/bloomika_flowers\nپاسخگویی: هر روز ۹ صبح تا ۹ شب",)
+        )
+        conn.commit()
+
     # Seed the FAQ table with the previously-hardcoded Q&A, only if empty,
     # so existing deployments migrate painlessly on first boot.
     cur.execute("SELECT COUNT(*) AS count FROM faq")
@@ -66,6 +80,13 @@ def init_db():
     cur.close()
     conn.close()
 
+def get_contact_info():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT content FROM contact_info ORDER BY id LIMIT 1")
+    row = cur.fetchone()
+    conn.close()
+    return row["content"] if row else None
 
 def get_faqs():
     conn = get_connection()

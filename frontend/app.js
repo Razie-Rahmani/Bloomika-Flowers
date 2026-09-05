@@ -6,7 +6,6 @@ let cart = [];
 const ICONS = {
     backArrow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>`,
     check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>`,
-    upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path></svg>`,
     flower: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.2"></circle><path d="M12 9.8c-1.5 0-2.7-1.2-2.7-2.7S10.5 4.4 12 4.4s2.7 1.2 2.7 2.7-1.2 2.7-2.7 2.7Z"></path><path d="M12 14.2c1.5 0 2.7 1.2 2.7 2.7s-1.2 2.7-2.7 2.7-2.7-1.2-2.7-2.7 1.2-2.7 2.7-2.7Z"></path><path d="M14.2 12c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7-1.2 2.7-2.7 2.7-2.7-1.2-2.7-2.7Z"></path><path d="M9.8 12c0 1.5-1.2 2.7-2.7 2.7S4.4 13.5 4.4 12s1.2-2.7 2.7-2.7 2.7 1.2 2.7 2.7Z"></path></svg>`,
     emptyCart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>`,
     alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`
@@ -41,7 +40,11 @@ function updateCartBadge() {
 }
 
 /* ========================================
-   Order placement + payment upload
+   Order placement
+   Payment receipts are no longer uploaded from here — the customer sends
+   the receipt photo directly to the bot in Telegram, and the backend
+   matches it to their most recent order via customer_telegram_id. See
+   the `customer_receipt_photo` handler in backend/main.py.
    ======================================== */
 async function placeOrder(orderData, placeOrderBtn) {
     const originalContent = placeOrderBtn.innerHTML;
@@ -72,58 +75,11 @@ async function placeOrder(orderData, placeOrderBtn) {
             <div id="total-price">مبلغ قابل پرداخت: ${escapeHtml(result.total_price)} تومان</div>
             <p>لطفاً مبلغ را به شماره کارت زیر واریز کنید:</p>
             <div class="payment-card-number">0000-0000-0000-0000<br>ملیکا عبیدانی</div>
-            <p>سپس تصویر رسید پرداخت را بارگذاری کنید تا سفارش شما توسط ادمین تأیید شود:</p>
-            <label for="receipt-input">رسید پرداخت</label>
-            <input type="file" id="receipt-input" accept="image/*">
-            <button type="button" id="submit-payment-btn">${ICONS.upload} ارسال رسید</button>
+            <p>سپس تصویر رسید پرداخت را <strong>همین‌جا در چت ربات</strong> ارسال کنید تا سفارش شما توسط ادمین تأیید شود.</p>
         `;
 
-        const submitPaymentBtn = document.getElementById("submit-payment-btn");
-        submitPaymentBtn.addEventListener("click", async function () {
-            const receipt = document.getElementById("receipt-input");
-            if (!receipt.files[0]) {
-                receipt.classList.add("field-error");
-                return;
-            }
-
-            const originalPaymentContent = submitPaymentBtn.innerHTML;
-            submitPaymentBtn.disabled = true;
-            submitPaymentBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span> در حال ارسال...`;
-
-            try {
-                const file = receipt.files[0];
-                const base64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result.split(",")[1]);
-                    reader.onerror = () => reject(new Error("File read failed"));
-                    reader.readAsDataURL(file);
-                });
-
-                const response = await fetch(`${API_BASE}/orders/${result.order_id}/payment`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        receipt_base64: base64,
-                        filename: file.name,
-                        mimetype: file.type || "image/jpeg"
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Response status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                cartSection.innerHTML = `<p class="order-confirmation-title">${ICONS.check} ${escapeHtml(data.message)}</p>`;
-                cart = [];
-                updateCartBadge();
-            } catch (error) {
-                console.error(error.message);
-                submitPaymentBtn.disabled = false;
-                submitPaymentBtn.innerHTML = originalPaymentContent;
-                submitPaymentBtn.insertAdjacentHTML("afterend", `<p class="field-error-msg">ارسال رسید ناموفق بود. دوباره تلاش کنید.</p>`);
-            }
-        });
+        cart = [];
+        updateCartBadge();
 
     } catch (error) {
         console.error(error.message);

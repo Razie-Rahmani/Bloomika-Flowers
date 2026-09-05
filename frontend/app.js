@@ -91,11 +91,22 @@ async function placeOrder(orderData, placeOrderBtn) {
             submitPaymentBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span> در حال ارسال...`;
 
             try {
-                const formData = new FormData();
-                formData.append("receipt", receipt.files[0]);
+                const file = receipt.files[0];
+                const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(",")[1]);
+                    reader.onerror = () => reject(new Error("File read failed"));
+                    reader.readAsDataURL(file);
+                });
+
                 const response = await fetch(`${API_BASE}/orders/${result.order_id}/payment`, {
                     method: "POST",
-                    body: formData
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        receipt_base64: base64,
+                        filename: file.name,
+                        mimetype: file.type || "image/jpeg"
+                    })
                 });
 
                 if (!response.ok) {

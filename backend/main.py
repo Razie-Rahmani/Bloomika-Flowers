@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Request, HTTPException, Query, Depends, Header
+from fastapi import FastAPI, Request, HTTPException, Query, Depends, Header
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -6,6 +6,7 @@ from database import get_connection, init_db, get_faqs, get_faq, update_faq_answ
 from pydantic import BaseModel
 from typing import Optional
 import json
+import base64
 from io import BytesIO
 
 from aiogram import Bot, Dispatcher, F
@@ -66,6 +67,11 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     price: Optional[int] = None
     category: Optional[str] = None
+
+class PaymentReceipt(BaseModel):
+    receipt_base64: str
+    filename: Optional[str] = "receipt.jpg"
+    mimetype: Optional[str] = "image/jpeg"
 
 init_db()
 
@@ -205,9 +211,11 @@ def update_status(order_id: int, update: StatusUpdate):
     return dict(new_stat)
 
 @app.post("/orders/{order_id}/payment")
-async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
-    contents = await receipt.read()
-
+async def upload_payments(order_id: int, payload: PaymentReceipt):
+    try:
+        contents = base64.b64decode(payload.receipt_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid receipt data")
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -245,13 +253,8 @@ async def upload_payments(order_id: int, receipt: UploadFile = File(...)):
     )
 
     try:
-        photo = BufferedInputFile(contents, filename=f"receipt_{order_id}.jpg")
-        await bot.send_photo(
-            ADMIN_ID,
-            photo=photo,
-            caption=caption,
-            reply_markup=keyboard
-        )
+        photo = BufferedInputFile(contents, filename=payload.filename or f"receipt_{order_id}.jpg")
+        await bot.send_photo(ADMIN_ID, photo=photo, caption=caption, reply_markup=keyboard)
     except Exception as e:
         print(f"Telegram notification failed: {e}")
 

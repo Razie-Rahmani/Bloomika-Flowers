@@ -65,6 +65,7 @@ frontend/
 ## Frontend design
 
 The UI isn't a generic template — it's built off a deliberate design-token system in `style.css`: a romantic-pink brand palette paired with a botanical green for success/confirmation states, RTL layout throughout (`dir="rtl"`, `lang="fa"`), Vazirmatn as the display font for correct Farsi shaping, and a consistent spacing/radius/shadow scale rather than ad-hoc values. No component framework — plain DOM manipulation in `app.js`, which keeps the Mini App's payload small and avoids a build step entirely.
+The CSS design system was developed with assistance from Claude using the [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) skill.
 
 ## Environment variables
 
